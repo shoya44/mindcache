@@ -289,14 +289,14 @@ function pickFiles() {
 function renderPendingAttachments() {
   els.attachmentList.innerHTML = pendingFiles.map((file, idx) => `
     <div class="attachment-item" data-idx="${idx}">
-      <span>📎 ${escapeHtml(file.name)} ${formatFileSize(file.size)}</span>
-      <span class="remove-attach" data-idx="${idx}">✕</span>
+      <span class="file-name"><svg class="icon"><use href="#i-file"/></svg>${escapeHtml(file.name)} ${formatFileSize(file.size)}</span>
+      <span class="remove-attach" data-idx="${idx}"><svg class="icon"><use href="#i-close"/></svg></span>
     </div>
   `).join('');
 
   els.attachmentList.querySelectorAll('.remove-attach').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const idx = Number(e.target.dataset.idx);
+      const idx = Number(e.currentTarget.dataset.idx);
       pendingFiles.splice(idx, 1);
       renderPendingAttachments();
     });
@@ -312,7 +312,7 @@ async function openDetailModal(id) {
     els.detailMeta.textContent = `Updated ${formatRelativeTime(res.memo.updated_at)}`;
     els.detailContent.textContent = res.memo.content || '';
     els.detailAttachmentList.innerHTML = (res.attachments || []).map(a => `
-      <div class="attachment-item" data-id="${a.id}">📎 ${escapeHtml(a.filename)}</div>
+      <div class="attachment-item" data-id="${a.id}"><span class="file-name"><svg class="icon"><use href="#i-file"/></svg>${escapeHtml(a.filename)}</span></div>
     `).join('');
 
     // F13: 添付ファイルタップでダウンロード
