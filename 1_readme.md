@@ -3,18 +3,19 @@
 MindCache は、「あれなんだっけ？」をワンタップで解決するための、自分専用の外部脳PWAです。
 iPhone・PCどちらからでもアクセスでき、共有キー（パスフレーズ）でデータを同期します。
 
+本番環境: https://mindcache.pages.dev
+
 ---
 
 ## 🚀 特徴
 
 *   **📝 メモを即保存**：タイトル（任意）＋本文（必須）で、思いついたことをすぐに記録
-*   **📌 ピン留め**：大事なメモは一覧上部に固定表示（📌マークではなく、カード左縁のグラデーションで視認）
+*   **📌 ピン留め**：大事なメモは一覧上部に固定表示（カード左縁のグラデーションで視認）
 *   **🔍 リアルタイム検索**：タイトル・本文を部分一致で即座にフィルタリング
-*   **📎 ファイル添付（R2連携）**：画像・PDF・ソースコードなど、任意のファイルをメモに添付（1メモ最大10個）
 *   **🔄 クラウド同期**：共有キー（任意のパスフレーズ）でiPhone・PC間でデータを自動同期
-*   **📴 オフライン対応**：Service Workerによるキャッシュ表示＋オフライン編集・復帰時自動同期
-*   **📤 データエクスポート/インポート**：全データをJSONでバックアップ・復元可能
 *   **📱 PWA対応**：iPhoneのホーム画面に追加して、ネイティブアプリのように利用可能
+
+> 添付ファイル（R2連携）、オフライン編集、データエクスポート/インポートは仕様書（`4_spec.md`）に定義されているが未実装。詳細は「実装状況」参照。
 
 ---
 
@@ -22,13 +23,13 @@ iPhone・PCどちらからでもアクセスでき、共有キー（パスフレ
 
 | レイヤー | 技術 |
 | :--- | :--- |
-| **フロントエンド** | HTML5 + CSS3 + JavaScript（ES2024） |
+| **フロントエンド** | HTML5 + CSS3 + JavaScript（ES2024、フレームワーク不使用） |
 | **PWA** | manifest.json + Service Worker |
 | **バックエンドAPI** | Cloudflare Workers |
 | **データベース** | Cloudflare D1（SQLite互換） |
-| **ファイルストレージ** | Cloudflare R2（S3互換） |
+| **ファイルストレージ** | Cloudflare R2（S3互換、APIのみ実装済み・フロント未連携） |
 | **ホスティング** | Cloudflare Pages |
-| **認証** | 共有キー（パスフレーズ）方式 |
+| **認証** | 共有キー（パスフレーズ）方式（ヘッダー `X-Sync-Key`） |
 
 ---
 
@@ -36,50 +37,51 @@ iPhone・PCどちらからでもアクセスでき、共有キー（パスフレ
 
 ```text
 mindcache/
-├── frontend/                    # Cloudflare Pages デプロイ
+├── frontend/                    # Cloudflare Pages デプロイ対象
 │   ├── index.html               # メインHTML
 │   ├── css/
 │   │   └── style.css            # 全スタイル（Glassmorphism）
 │   ├── js/
-│   │   ├── app.js               # メインロジック
-│   │   ├── api.js               # API通信層
-│   │   └── db.js                # IndexedDB操作（オフライン用）
+│   │   ├── app.js               # メインロジック（UI制御・状態管理）
+│   │   └── api.js               # API通信層（Worker呼び出し）
 │   ├── manifest.json            # PWA設定
-│   ├── sw.js                    # Service Worker
-│   └── icons/                   # アプリアイコン（任意）
-│       ├── icon-192.png
-│       └── icon-512.png
+│   └── sw.js                    # Service Worker（キャッシュ）
 ├── worker/
 │   └── src/
-│       ├── index.js             # メインWorker（CRUD + R2連携）
-│       └── cleanup.js           # クリーンアップWorker（Cron実行）
+│       ├── index.js             # メインWorker（CRUD + R2連携API）
+│       └── cleanup.js           # クリーンアップWorker（Cron実行、単独デプロイ）
 ├── schema.sql                   # D1テーブル定義
-├── wrangler.toml                # Cloudflare設定
-└── README.md                    # 本ファイル
+├── wrangler.toml                # Cloudflare設定（メインWorker用）
+├── 1_readme.md                  # 本ファイル
+├── 2_steps.md                   # 構築手順の実行ログ
+├── 3_directory.md                # D1テーブル構成メモ
+└── 4_spec.md                    # 仕様書（v1.0、将来機能含む）
 ```
+
+`frontend/icons/`（PWAアイコン）は`manifest.json`が参照しているが未配置。ホーム画面追加時のアイコン表示に影響する。
 
 ---
 
-## 📋 機能一覧
+## 📋 機能一覧・実装状況
 
-| No. | 機能名 | 優先度 | 説明 |
+| No. | 機能名 | 優先度 | 実装状況 |
 | :--- | :--- | :---: | :--- |
-| **F01** | メモ一覧表示 | 🔥 最優先 | メモをカード形式で一覧表示（最新10件＋ピン留め優先） |
-| **F02** | メモ新規作成 | 🔥 最優先 | タイトル（任意）・本文（必須）を入力して新規メモを作成 |
-| **F03** | メモ詳細表示 | 🔥 最優先 | メモの全文と添付ファイル一覧をモーダルで表示 |
-| **F04** | メモ編集 | 🔥 最優先 | 既存メモのタイトル・本文・ピン留め状態を編集 |
-| **F05** | メモ削除 | 🔥 最優先 | 確認ダイアログ表示後にメモを削除（添付ファイルも自動削除） |
-| **F06** | メモ検索 | ⭐ 高 | タイトル＋本文を部分一致でリアルタイム検索 |
-| **F07** | ピン留め | ⭐ 高 | メモをピン留め（一覧上部に固定表示） |
-| **F08** | ページネーション | ⭐ 高 | 最新10件表示＋「もっと読み込む」で追加取得 |
-| **F09** | 本文コピー | ⭐ 高 | メモ詳細画面から本文をワンタップでクリップボードにコピー |
-| **F10** | クラウド同期 | ⭐ 高 | 共有キーによるデータ同期（Cloudflare経由） |
-| **F11** | オフライン対応 | 🔵 中 | Service Workerによるキャッシュ表示＋オフライン編集 |
-| **F12** | 添付ファイルアップロード | 🔵 中 | メモに画像・ファイルを添付（R2保存） |
-| **F13** | 添付ファイルダウンロード | 🔵 中 | 添付ファイルをタップでダウンロード（署名付きURL） |
-| **F14** | データエクスポート | 🔵 中 | 全データをJSON形式でダウンロード |
-| **F15** | データインポート | 🔵 中 | JSONファイルからデータを復元（追加・上書き選択可） |
-| **F16** | PWAインストール | 🔵 中 | ホーム画面に追加可能（manifest.json） |
+| F01 | メモ一覧表示 | 🔥 最優先 | ✅ 実装済み |
+| F02 | メモ新規作成 | 🔥 最優先 | ✅ 実装済み |
+| F03 | メモ詳細表示 | 🔥 最優先 | ✅ 実装済み |
+| F04 | メモ編集 | 🔥 最優先 | ✅ 実装済み |
+| F05 | メモ削除 | 🔥 最優先 | ✅ 実装済み（確認は画面内モーダル） |
+| F06 | メモ検索 | ⭐ 高 | ✅ 実装済み |
+| F07 | ピン留め | ⭐ 高 | ✅ 実装済み |
+| F08 | ページネーション | ⭐ 高 | ✅ 実装済み |
+| F09 | 本文コピー | ⭐ 高 | ✅ 実装済み |
+| F10 | クラウド同期 | ⭐ 高 | ✅ 実装済み |
+| F11 | オフライン対応 | 🔵 中 | ⚠️ Service Workerの静的キャッシュのみ。オフライン編集・自動再同期は未実装 |
+| F12 | 添付ファイルアップロード | 🔵 中 | ⚠️ Worker APIのみ実装。フロントのアップロード連携は未実装（ファイル選択UIのみ） |
+| F13 | 添付ファイルダウンロード | 🔵 中 | ❌ 未実装 |
+| F14 | データエクスポート | 🔵 中 | ❌ 未実装 |
+| F15 | データインポート | 🔵 中 | ❌ 未実装 |
+| F16 | PWAインストール | 🔵 中 | ✅ 実装済み（アイコン画像は要配置） |
 
 ---
 
@@ -87,19 +89,19 @@ mindcache/
 
 ### 📡 APIエンドポイント一覧
 
-| メソッド | パス | 機能 |
-| :--- | :--- | :--- |
-| `GET` | `/api/memos` | メモ一覧取得（ページネーション） |
-| `POST` | `/api/memos` | 新規メモ作成 |
-| `GET` | `/api/memos/:id` | メモ詳細取得（添付含む） |
-| `PUT` | `/api/memos/:id` | メモ更新 |
-| `DELETE` | `/api/memos/:id` | メモ削除（添付も自動削除） |
-| `POST` | `/api/memos/:id/attachments` | 添付ファイルアップロード |
-| `DELETE` | `/api/attachments/:id` | 添付ファイル単体削除 |
-| `GET` | `/api/attachments/:id/url` | 署名付きダウンロードURL取得 |
-| `GET` | `/api/export` | 全データエクスポート |
-| `POST` | `/api/import` | データインポート |
-| `GET` | `/api/storage/usage`| R2ストレージ使用量取得 |
+| メソッド | パス | 機能 | フロント連携 |
+| :--- | :--- | :--- | :---: |
+| `GET` | `/api/memos` | メモ一覧取得（ページネーション） | ✅ |
+| `POST` | `/api/memos` | 新規メモ作成 | ✅ |
+| `GET` | `/api/memos/:id` | メモ詳細取得（添付含む） | ✅ |
+| `PUT` | `/api/memos/:id` | メモ更新 | ✅ |
+| `DELETE` | `/api/memos/:id` | メモ削除（添付も自動削除） | ✅ |
+| `POST` | `/api/memos/:id/attachments` | 添付ファイルアップロード | ❌ |
+| `DELETE` | `/api/attachments/:id` | 添付ファイル単体削除 | ❌ |
+| `GET` | `/api/attachments/:id/url` | 署名付きダウンロードURL取得 | ❌ |
+| `GET` | `/api/export` | 全データエクスポート | ❌ 未実装（Worker側にもエンドポイントなし） |
+| `POST` | `/api/import` | データインポート | ❌ 未実装（Worker側にもエンドポイントなし） |
+| `GET` | `/api/storage/usage`| R2ストレージ使用量取得 | ❌ 未実装（Worker側にもエンドポイントなし） |
 
 ### 🗄 データベーススキーマ
 
@@ -141,24 +143,20 @@ cd mindcache
 wrangler login
 ```
 
-### 2. D1データベース作成
+### 2. D1データベース作成・スキーマ適用
 ```bash
 wrangler d1 create mindcache-db
-```
-> 💡 出力された `database_id` を `wrangler.toml` に設定します。
-
-### 3. スキーマ適用
-```bash
-wrangler d1 execute mindcache-db --file=schema.sql
+# 出力された database_id を wrangler.toml に設定
+wrangler d1 execute mindcache-db --file=schema.sql --remote
 ```
 
-### 4. R2バケット作成
+### 3. R2バケット作成
 ```bash
 wrangler r2 bucket create mindcache-attachments
+# wrangler.toml にバケット名を設定
 ```
-> 💡 `wrangler.toml` にバケット名を設定します。
 
-### 5. Workerデプロイ
+### 4. Workerデプロイ
 ```bash
 # メインWorker
 wrangler deploy
@@ -167,20 +165,21 @@ wrangler deploy
 wrangler deploy --name=mindcache-cleanup worker/src/cleanup.js
 ```
 
-### 6. Pagesデプロイ
-```bash
-cd frontend
-npx wrangler pages deploy . --project-name=mindcache
-```
-
-### 7. 環境変数設定
+### 5. フロントエンドAPI URL設定
 `frontend/js/api.js` の `API_BASE` をWorkerのURLに変更します。
 ```javascript
 const API_BASE = 'https://mindcache-worker.xxxx.workers.dev';
 ```
-**Pages再デプロイ：**
+
+### 6. WorkerのCORS設定
+`worker/src/index.js` の `Access-Control-Allow-Origin` を、実際にアクセスするPages本番ドメインに合わせます。
+
+> ⚠️ Cloudflare Pagesはブランチ単位でデプロイが分かれる（例: `main`ブランチ→`main.<project>.pages.dev`、`production`ブランチ→本番ドメイン`<project>.pages.dev`）。本番ドメインに反映するには`--branch=production`を明示すること。省略するとGitのカレントブランチ名でデプロイされ、本番ドメインに反映されない。
+
+### 7. Pagesデプロイ
 ```bash
-npx wrangler pages deploy . --project-name=mindcache
+cd frontend
+npx wrangler pages deploy . --project-name=mindcache --branch=production
 ```
 
 ---
@@ -202,29 +201,35 @@ binding = "R2"
 bucket_name = "mindcache-attachments"
 
 [triggers]
-crons = ["0 2 * * *"]  # クリーンアップWorker用
+crons = ["0 2 * * *"]  # クリーンアップWorker用（cleanup.js を個別デプロイして利用）
 ```
 
 ---
 
-## 📱 使い方・設定
+## 📱 使い方（ユーザー向け）
 
-### PWAインストール方法（ユーザー向け）
-1. iPhoneのSafariで `https://mindcache.pages.dev` を開く
+### PWAインストール方法
+1. iPhoneのSafariで本番URLを開く
 2. 下部の共有ボタン（□に↑のアイコン）をタップ
 3. **「ホーム画面に追加」** をタップ
 4. **「追加」** をタップ
-5. ホーム画面から起動し、任意の同期キーを入力
+5. ホーム画面から起動し、任意の同期キーを入力（画面内モーダルで入力。ブラウザのネイティブダイアログ`window.prompt`は使用しない）
 
 ### ⚠️ 利用制約
 
 | 項目 | 制約値 |
 | :--- | :--- |
-| **1メモあたりの添付ファイル上限** | 10個 |
-| **1ファイルあたり上限** | 無制限（自己責任） |
-| **メモ本文最大文字数** | 100,000文字 |
-| **R2自動削除開始閾値** | 9GB（保存容量） |
+| **1メモあたりの添付ファイル上限** | 10個（Worker API側のみ、フロント未連携） |
+| **メモ本文最大文字数** | 100,000文字（D1のSQLite制限に準拠、フロント側バリデーションは未実装） |
+| **R2自動削除開始閾値** | 9GB（保存容量、`cleanup.js`による） |
 | **Workerリクエスト上限** | 10万リクエスト/日（Cloudflare無料枠） |
+
+---
+
+## 🐛 既知の注意点
+
+*   `window.prompt` / `window.confirm` はメインスレッドをブロックするネイティブダイアログで、PWA（ホーム画面起動時のstandalone表示）環境ではフリーズや無反応を引き起こすことが確認されている。本プロジェクトでは同期キー入力・削除確認ともに画面内モーダル（Promiseベース）で実装している。新規実装時も`window.prompt`/`window.confirm`/`window.alert`は使用しないこと。
+*   Cloudflare Pagesはブランチ単位でデプロイが分離される。本番ドメインへ反映する際は必ず`--branch=production`を指定すること。
 
 ---
 
@@ -233,7 +238,6 @@ crons = ["0 2 * * *"]  # クリーンアップWorker用
 *   **ライセンス**: MIT License
 *   **謝辞**:
     *   Cloudflare — Workers・D1・R2・Pages
-    *   Lucide — アイコンセット
 
 <p align="center">
   <i>Made with ☕️ and 🧠</i>

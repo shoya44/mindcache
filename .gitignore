@@ -1,0 +1,10 @@
+# Wrangler / Cloudflare local state & cache（アカウント情報を含むため管理対象外）
+.wrangler/
+frontend/.wrangler/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

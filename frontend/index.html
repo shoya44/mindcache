@@ -96,6 +96,34 @@
     </div>
   </div>
 
+  <!-- Sync Key 入力オーバーレイ -->
+  <div id="syncKeyOverlay" style="display:none;">
+    <div class="modal glass">
+      <div class="modal-header">
+        <span>🔑 Sync Key</span>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">Enter your Sync Key to continue.</p>
+        <input type="text" id="syncKeyInput" placeholder="Sync Key" class="modal-title-input" style="width:100%;">
+        <button id="syncKeySubmit" class="copy-btn" style="margin-top:16px;">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 削除確認オーバーレイ -->
+  <div id="confirmOverlay" style="display:none;">
+    <div class="modal glass">
+      <div class="modal-header">
+        <span>Delete this memo?</span>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">This cannot be undone.</p>
+        <button id="confirmCancel" class="copy-btn">Cancel</button>
+        <button id="confirmOk" class="copy-btn" style="color:#EF4444;margin-top:8px;">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- トースト -->
   <div id="toast" class="toast"></div>
 
