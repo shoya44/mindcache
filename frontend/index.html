@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0A0F">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <title>MindCache</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ヘッダー -->
+    <header class="header glass">
+      <div class="header-left">
+        <span class="icon-btn" id="searchToggle">🔍</span>
+      </div>
+      <div class="header-center">
+        <span id="syncStatus">🔄 Synced</span>
+      </div>
+      <div class="header-right">
+        <span class="icon-btn" id="reloadBtn">↻</span>
+      </div>
+    </header>
+
+    <!-- 検索バー -->
+    <div class="search-container">
+      <input type="text" id="searchInput" placeholder="Search..." class="search-input glass">
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main id="mainContent">
+      <!-- ピン留めセクション -->
+      <section id="pinnedSection" style="display:none;">
+        <div class="section-label">📌 Pinned</div>
+        <div id="pinnedList"></div>
+      </section>
+
+      <!-- 全メモセクション -->
+      <section id="allSection">
+        <div class="section-label">All Memos</div>
+        <div id="memoList"></div>
+      </section>
+
+      <!-- もっと読み込むボタン -->
+      <button id="loadMoreBtn" style="display:none;" class="load-more-btn glass">Load More</button>
+    </main>
+
+    <!-- FAB（新規追加） -->
+    <button id="fab" class="fab glass">✨</button>
+  </div>
+
+  <!-- モーダル用オーバーレイ -->
+  <div id="modalOverlay" style="display:none;">
+    <div class="modal glass">
+      <div class="modal-header">
+        <span class="modal-back" id="modalBack">← Back</span>
+        <span class="modal-save" id="modalSave">✨ Save</span>
+      </div>
+      <div class="modal-body">
+        <div class="modal-title-row">
+          <input type="text" id="modalTitle" placeholder="Title (optional)" class="modal-title-input">
+          <span class="pin-toggle" id="pinToggle">📌</span>
+        </div>
+        <textarea id="modalContent" placeholder="Content..." class="modal-content-input"></textarea>
+        <div class="modal-attachments">
+          <div class="attachments-header">
+            <span>Attachments</span>
+            <button id="addFileBtn" class="add-file-btn">＋ Add File</button>
+          </div>
+          <div id="attachmentList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 詳細モーダル -->
+  <div id="detailOverlay" style="display:none;">
+    <div class="modal glass">
+      <div class="modal-header">
+        <span class="modal-close" id="detailClose">✕ Close</span>
+        <span class="modal-edit" id="detailEdit">✏️ Edit</span>
+        <span class="modal-delete" id="detailDelete">🗑️ Delete</span>
+      </div>
+      <div class="modal-body detail-body">
+        <h2 id="detailTitle"></h2>
+        <div class="detail-meta" id="detailMeta"></div>
+        <div class="detail-content" id="detailContent"></div>
+        <button class="copy-btn" id="detailCopy">📋 Copy All</button>
+        <div class="detail-attachments">
+          <div class="attachments-header">Attachments</div>
+          <div id="detailAttachmentList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト -->
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

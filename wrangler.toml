@@ -1,0 +1,15 @@
+name = "mindcache-worker"
+main = "worker/src/index.js"
+compatibility_date = "2024-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mindcache-db"
+database_id = "aba4fe27-1746-41c2-b96f-1b6f33bbc2c0"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "mindcache-attachments"
+
+[triggers]
+crons = ["0 2 * * *"]  # 毎日深夜2時
