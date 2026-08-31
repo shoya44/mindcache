@@ -20,6 +20,8 @@
         <span id="syncStatus">🔄 Synced</span>
       </div>
       <div class="header-right">
+        <span class="icon-btn" id="exportBtn" title="Export data">⬇️</span>
+        <span class="icon-btn" id="importBtn" title="Import data">⬆️</span>
         <span class="icon-btn" id="reloadBtn">↻</span>
       </div>
     </header>
@@ -123,6 +125,23 @@
       </div>
     </div>
   </div>
+
+  <!-- インポート方式選択オーバーレイ -->
+  <div id="importModeOverlay" style="display:none;">
+    <div class="modal glass">
+      <div class="modal-header">
+        <span>📥 Import Data</span>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">Choose how to import the selected file.</p>
+        <button id="importAppendBtn" class="copy-btn">Append（既存データに追加）</button>
+        <button id="importOverwriteBtn" class="copy-btn" style="color:#EF4444;margin-top:8px;">Overwrite（既存データを置き換え）</button>
+        <button id="importCancelBtn" class="copy-btn" style="margin-top:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="importFileInput" accept="application/json" style="display:none;">
 
   <!-- トースト -->
   <div id="toast" class="toast"></div>

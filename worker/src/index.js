@@ -1,4 +1,8 @@
 // worker/src/index.js
+function url_origin(request) {
+  return new URL(request.url).origin;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -171,11 +175,15 @@ export default {
       }
 
       // GET /api/attachments/:id/url
+      // 署名付きURLはR2バインディングAPIに存在しないため、Worker経由の
+      // ダウンロード用エンドポイントURLを返す方式にする（認証はX-Sync-Keyで実施）
       const attUrlMatch = path.match(/^\/api\/attachments\/([^/]+)\/url$/);
       if (attUrlMatch && method === 'GET') {
         const attId = attUrlMatch[1];
-        const stmt = env.DB.prepare('SELECT * FROM attachments WHERE id = ?');
-        const attachment = await stmt.bind(attId).first();
+        const stmt = env.DB.prepare(
+          'SELECT a.* FROM attachments a JOIN memos m ON a.memo_id = m.id WHERE a.id = ? AND m.sync_key = ?'
+        );
+        const attachment = await stmt.bind(attId, syncKey).first();
         if (!attachment) {
           return new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Attachment not found' } }), {
             status: 404,
@@ -183,11 +191,107 @@ export default {
           });
         }
 
-        const url = await env.R2.createSignedUrl(attachment.r2_key, {
-          expiresIn: 3600
-        });
-
+        const url = `${url_origin(request)}/api/attachments/${attId}/download`;
         return new Response(JSON.stringify({ url, expires_in: 3600 }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // GET /api/attachments/:id/download
+      const attDownloadMatch = path.match(/^\/api\/attachments\/([^/]+)\/download$/);
+      if (attDownloadMatch && method === 'GET') {
+        const attId = attDownloadMatch[1];
+        const stmt = env.DB.prepare(
+          'SELECT a.* FROM attachments a JOIN memos m ON a.memo_id = m.id WHERE a.id = ? AND m.sync_key = ?'
+        );
+        const attachment = await stmt.bind(attId, syncKey).first();
+        if (!attachment) {
+          return new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Attachment not found' } }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const object = await env.R2.get(attachment.r2_key);
+        if (!object) {
+          return new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'File not found in storage' } }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        return new Response(object.body, {
+          headers: {
+            'Content-Type': attachment.mime_type || 'application/octet-stream',
+            'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.filename)}"`,
+            ...corsHeaders
+          }
+        });
+      }
+
+      // GET /api/export
+      if (path === '/api/export' && method === 'GET') {
+        const memosStmt = env.DB.prepare('SELECT * FROM memos WHERE sync_key = ?');
+        const memos = await memosStmt.bind(syncKey).all();
+
+        const memoIds = memos.results.map(m => m.id);
+        let attachments = [];
+        if (memoIds.length > 0) {
+          const placeholders = memoIds.map(() => '?').join(',');
+          const attStmt = env.DB.prepare(
+            `SELECT a.* FROM attachments a WHERE a.memo_id IN (${placeholders})`
+          );
+          const attResults = await attStmt.bind(...memoIds).all();
+          attachments = attResults.results;
+        }
+
+        return new Response(JSON.stringify({
+          version: 1,
+          exported_at: Date.now(),
+          memos: memos.results,
+          attachments
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // POST /api/import
+      if (path === '/api/import' && method === 'POST') {
+        const body = await request.json();
+        const { data, mode } = body;
+
+        if (!data || !Array.isArray(data.memos)) {
+          return new Response(JSON.stringify({ error: { code: 'VALIDATION_ERROR', message: 'Invalid import data' } }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        if (mode === 'overwrite') {
+          await env.DB.prepare('DELETE FROM memos WHERE sync_key = ?').bind(syncKey).run();
+        }
+
+        let importedCount = 0;
+        const now = Date.now();
+        for (const memo of data.memos) {
+          if (!memo.content || memo.content.trim() === '') continue;
+          const id = crypto.randomUUID();
+          const stmt = env.DB.prepare(
+            'INSERT INTO memos (id, sync_key, title, content, is_pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          );
+          await stmt.bind(
+            id,
+            syncKey,
+            memo.title || null,
+            memo.content,
+            memo.is_pinned ? 1 : 0,
+            memo.created_at || now,
+            memo.updated_at || now
+          ).run();
+          importedCount++;
+        }
+
+        return new Response(JSON.stringify({ success: true, imported_count: importedCount }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }

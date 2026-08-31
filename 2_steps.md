@@ -130,3 +130,51 @@ npx wrangler pages deploy . --project-name=mindcache
 
 ✨ Deployment complete! Take a peek over at https://85486ccc.mindcache.pages.dev
 
+
+## 10: バグ修正（app.js欠落 / window.prompt・confirmによるフリーズ）
+### frontend/js/app.js が未作成のままデプロイされていたため新規作成
+### window.prompt / window.confirm はPWA（ホーム画面起動）環境でメインスレッドを
+### ブロックしフリーズを引き起こすため使用せず、画面内モーダル（Sync Key入力・削除確認）に変更
+### frontend/index.html に #syncKeyOverlay, #confirmOverlay を追加
+
+### D1にスキーマ未適用だったため適用（本番D1）
+wrangler d1 execute mindcache-db --file=schema.sql --remote
+
+### Cloudflare Pagesはブランチ単位でデプロイが分離されることが判明
+### （mainブランチ→main.mindcache.pages.dev、productionブランチ→本番ドメイン）
+### 本番反映には --branch=production を明示する必要がある
+cd frontend
+npx wrangler pages deploy . --project-name=mindcache --branch=production
+
+## 11: リポジトリ整理
+### .wrangler/ をgit管理から除外（Cloudflareアカウント情報を含むビルドキャッシュのため）
+### .gitignore を新規作成
+### 改行コード（CRLF化していたファイル）をLFに統一
+### 1_readme.md を実装状況に合わせて全面更新
+
+## 12: F12〜F15 実装（添付アップロード/ダウンロード、エクスポート/インポート）
+### worker/src/index.js
+### - GET /api/attachments/:id/url のバグ修正（env.R2.createSignedUrl はR2バインディング
+###   APIに存在せず常に例外になっていた）→ Worker経由のダウンロードURLを返す方式に変更
+### - GET /api/attachments/:id/download を新規追加（X-Sync-Key認証、R2からファイル実体を返す）
+### - GET /api/export を新規追加（sync_keyに紐づく全memos/attachmentsをJSON化）
+### - POST /api/import を新規追加（mode: append/overwrite）
+
+### frontend/js/api.js
+### - uploadAttachment, downloadAttachment, exportData, importData を追加
+###   (deleteAttachment はAPI関数のみ用意。保存済み添付の個別削除UIは今回未実装)
+
+### frontend/js/app.js
+### - saveMemo() 内でメモ保存後にpendingFilesをアップロード（F12）
+### - 詳細モーダルの添付ファイルタップでダウンロード（F13、fetch+Blob URL方式）
+### - ヘッダーにExport/Importアイコンを追加、インポート時はappend/overwriteを
+###   画面内モーダルで選択（F14/F15）
+
+### frontend/index.html
+### - ヘッダーに #exportBtn, #importBtn を追加
+### - #importModeOverlay, #importFileInput を追加
+
+### Worker再デプロイ・Pages再デプロイが必要
+wrangler deploy
+cd frontend
+npx wrangler pages deploy . --project-name=mindcache --branch=production

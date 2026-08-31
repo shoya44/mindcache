@@ -1,5 +1,9 @@
 // frontend/js/app.js
-import { getMemos, createMemo, getMemo, updateMemo, deleteMemo } from './api.js';
+import {
+  getMemos, createMemo, getMemo, updateMemo, deleteMemo,
+  uploadAttachment, downloadAttachment,
+  exportData, importData,
+} from './api.js';
 
 // ===== 状態 =====
 let currentCursor = '0';
@@ -45,7 +49,16 @@ const els = {
   confirmOverlay: $('confirmOverlay'),
   confirmCancel: $('confirmCancel'),
   confirmOk: $('confirmOk'),
+  exportBtn: $('exportBtn'),
+  importBtn: $('importBtn'),
+  importFileInput: $('importFileInput'),
+  importModeOverlay: $('importModeOverlay'),
+  importAppendBtn: $('importAppendBtn'),
+  importOverwriteBtn: $('importOverwriteBtn'),
+  importCancelBtn: $('importCancelBtn'),
 };
+
+let pendingImportData = null; // ファイル選択後、モード選択待ちのインポートデータ
 
 // ===== 初期化 =====
 init();
@@ -131,6 +144,20 @@ function bindEvents() {
   });
   els.detailDelete.addEventListener('click', handleDelete);
   els.detailCopy.addEventListener('click', copyDetailContent);
+
+  // F14: エクスポート
+  els.exportBtn.addEventListener('click', handleExport);
+
+  // F15: インポート（ファイル選択→モード選択→実行）
+  els.importBtn.addEventListener('click', () => els.importFileInput.click());
+  els.importFileInput.addEventListener('change', handleImportFileSelect);
+  els.importAppendBtn.addEventListener('click', () => runImport('append'));
+  els.importOverwriteBtn.addEventListener('click', () => runImport('overwrite'));
+  els.importCancelBtn.addEventListener('click', () => {
+    els.importModeOverlay.style.display = 'none';
+    pendingImportData = null;
+    els.importFileInput.value = '';
+  });
 }
 
 // ===== データ取得・一覧描画 =====
@@ -217,14 +244,32 @@ async function saveMemo() {
   }
 
   try {
+    let memoId = editingMemoId;
     if (editingMemoId) {
       await updateMemo(editingMemoId, title || null, content, isPinned);
     } else {
-      await createMemo(title || null, content, isPinned);
+      const res = await createMemo(title || null, content, isPinned);
+      memoId = res.memo.id;
     }
+
+    // F12: 選択済みファイルをアップロード（1件失敗しても残りは続行し、まとめて通知）
+    if (pendingFiles.length > 0) {
+      const failed = [];
+      for (const file of pendingFiles) {
+        try {
+          await uploadAttachment(memoId, file);
+        } catch (err) {
+          failed.push(file.name);
+        }
+      }
+      if (failed.length > 0) {
+        showToast(`Saved, but ${failed.length} attachment(s) failed`);
+      }
+    }
+
     closeEditModal();
     await loadMemos({ reset: true });
-    showToast('Saved!');
+    if (pendingFiles.length === 0) showToast('Saved!');
   } catch (err) {
     await handleApiError(err);
   }
@@ -269,6 +314,20 @@ async function openDetailModal(id) {
     els.detailAttachmentList.innerHTML = (res.attachments || []).map(a => `
       <div class="attachment-item" data-id="${a.id}">📎 ${escapeHtml(a.filename)}</div>
     `).join('');
+
+    // F13: 添付ファイルタップでダウンロード
+    els.detailAttachmentList.querySelectorAll('.attachment-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        const att = (res.attachments || []).find(a => a.id === item.dataset.id);
+        if (!att) return;
+        try {
+          await downloadAttachment(att.id, att.filename);
+        } catch (err) {
+          showToast('Download failed');
+        }
+      });
+    });
+
     els.detailOverlay.style.display = 'flex';
   } catch (err) {
     await handleApiError(err);
@@ -299,6 +358,63 @@ function copyDetailContent() {
   navigator.clipboard.writeText(currentDetailMemo.content || '')
     .then(() => showToast('Copied!'))
     .catch(() => showToast('Copy failed'));
+}
+
+// ===== エクスポート/インポート（F14/F15） =====
+async function handleExport() {
+  try {
+    const data = await exportData();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.download = `mindcache-export-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+    showToast('Exported!');
+  } catch (err) {
+    await handleApiError(err);
+  }
+}
+
+function handleImportFileSelect() {
+  const file = els.importFileInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      pendingImportData = JSON.parse(reader.result);
+      els.importModeOverlay.style.display = 'flex';
+    } catch (e) {
+      showToast('Invalid JSON file');
+      els.importFileInput.value = '';
+    }
+  };
+  reader.onerror = () => {
+    showToast('Failed to read file');
+    els.importFileInput.value = '';
+  };
+  reader.readAsText(file);
+}
+
+async function runImport(mode) {
+  if (!pendingImportData) return;
+  els.importModeOverlay.style.display = 'none';
+  try {
+    const res = await importData(pendingImportData, mode);
+    showToast(`Imported ${res.imported_count} memo(s)`);
+    await loadMemos({ reset: true });
+  } catch (err) {
+    await handleApiError(err);
+  } finally {
+    pendingImportData = null;
+    els.importFileInput.value = '';
+  }
 }
 
 // ===== 共通ユーティリティ =====
